@@ -611,6 +611,21 @@ function saveCfg(cfg) {
 let cfg = loadCfg();
 let installed = [];
 
+/* A browser can leave a cross-origin request to localhost pending for good
+   rather than refusing it, so every call carries its own deadline. */
+async function fetchWithTimeout(url, opts, ms) {
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), ms);
+  try {
+    return await fetch(url, Object.assign({}, opts, { signal: stop.signal }));
+  } catch (e) {
+    if (e.name === "AbortError") throw new Error("No answer from " + url + " within " + Math.round(ms / 1000) + "s.");
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /* ===================================================================
    Nimble — the decision model.
 
@@ -658,11 +673,11 @@ async function askNimble(scene, action, goal) {
     scene: scene,
     player_action: action
   };
-  const res = await fetch(cfg.host.replace(/\/+$/, "") + "/v1/systemone", {
+  const res = await fetchWithTimeout(cfg.host.replace(/\/+$/, "") + "/v1/systemone", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model: cfg.judge, state: state, questions: QUESTIONS, keep_alive: "10m" })
-  });
+  }, 120000);
   if (!res.ok) throw new Error("Nimble returned " + res.status + " — " + (await res.text()).slice(0, 200));
   const data = await res.json();
   if (data.error) throw new Error("Nimble: " + data.error);
@@ -725,7 +740,7 @@ const FINALE_SCHEMA = {
 };
 
 async function narrate(messages, schema, maxTokens) {
-  const res = await fetch(cfg.host.replace(/\/+$/, "") + "/api/chat", {
+  const res = await fetchWithTimeout(cfg.host.replace(/\/+$/, "") + "/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -737,7 +752,7 @@ async function narrate(messages, schema, maxTokens) {
       options: { temperature: 0.9, top_p: 0.95, num_predict: maxTokens || 520 },
       messages: [{ role: "system", content: NARRATOR_SYSTEM }].concat(messages)
     })
-  });
+  }, 300000);
   if (!res.ok) throw new Error("Narrator returned " + res.status + " — " + (await res.text()).slice(0, 200));
   const data = await res.json();
   const raw = (data.message && data.message.content || "").trim();
@@ -1215,11 +1230,11 @@ async function gradeRun() {
 }
 
 async function askNimbleRaw(state, questions) {
-  const res = await fetch(cfg.host.replace(/\/+$/, "") + "/v1/systemone", {
+  const res = await fetchWithTimeout(cfg.host.replace(/\/+$/, "") + "/v1/systemone", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model: cfg.judge, state: state, questions: questions, keep_alive: "10m" })
-  });
+  }, 120000);
   if (!res.ok) throw new Error("Nimble returned " + res.status);
   const data = await res.json();
   if (data.error) throw new Error("Nimble: " + data.error);
@@ -1340,7 +1355,9 @@ function fixHint() {
     "# restarts the server itself, with its own environment, and the\n" +
     "# setting never reaches it.\n" +
     "launchctl setenv OLLAMA_ORIGINS \"" + origin + "\"\n\n" +
-    "# Or skip all of it \u2014 localhost is allowed already:\n" +
+    "# Some browsers refuse calls to localhost from a public https page\n" +
+    "# whatever Ollama allows. Serving the page yourself sidesteps that,\n" +
+    "# and needs no configuration at all:\n" +
     "git clone https://github.com/Jonezzyboy/nerve && cd nerve\n" +
     "python3 -m http.server 8383      # then open http://localhost:8383";
 }
@@ -1353,7 +1370,7 @@ function chatCapable(m) {
 async function probe() {
   setStatus("idle", "Checking Ollama…");
   try {
-    const res = await fetch(cfg.host.replace(/\/+$/, "") + "/api/tags");
+    const res = await fetchWithTimeout(cfg.host.replace(/\/+$/, "") + "/api/tags", {}, 6000);
     if (!res.ok) throw new Error("Ollama returned " + res.status);
     installed = (await res.json()).models || [];
   } catch (e) {
