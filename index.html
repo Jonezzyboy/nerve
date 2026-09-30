@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nerve. — a choose-your-own-adventure judged by a local model</title>
+<meta name="description" content="Nerve is a text adventure that runs entirely on your own machine. A local narrator model writes the story; Bespoke Labs' Nimble decision model rates every choice you make, and its probabilities decide what happens next.">
+<link rel="canonical" href="https://jonezzyboy.github.io/nerve/">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎲</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #14121a;
+  --ink-deep: #0c0a10;
+  --panel: #1d1a25;
+  --panel-soft: #262231;
+  --line: rgba(240, 233, 224, 0.14);
+  --cream: #f0e9e0;
+  --cream-soft: rgba(240, 233, 224, 0.62);
+  --cream-faint: rgba(240, 233, 224, 0.34);
+  --nerve: #e8436f;
+  --nerve-deep: #b3255e;
+  --grip: #3fb99a;
+  --gold: #e8b73f;
+  --display: "Instrument Serif", Georgia, serif;
+  --body: "Manrope", -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+html[data-theme="daylight"] {
+  --ink: #efe8dd;
+  --ink-deep: #e2d8ca;
+  --panel: #fbf7f0;
+  --panel-soft: #f2ece1;
+  --line: rgba(20, 18, 26, 0.16);
+  --cream: #191621;
+  --cream-soft: rgba(25, 22, 33, 0.66);
+  --cream-faint: rgba(25, 22, 33, 0.38);
+  --nerve: #b3255e;
+  --grip: #1d7f68;
+  --gold: #9a7513;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--ink);
+  background-image: radial-gradient(ellipse at 50% -20%, var(--ink) 50%, var(--ink-deep) 100%);
+  background-attachment: fixed;
+  color: var(--cream);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 36px 16px 48px;
+}
+
+:focus-visible { outline: 3px solid var(--nerve); outline-offset: 3px; }
+
+.wrap { width: min(680px, 100%); }
+
+.masthead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.wordmark {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(46px, 11vw, 68px);
+  letter-spacing: -0.015em;
+  line-height: 1;
+}
+
+.wordmark .dot { color: var(--nerve); }
+
+.masthead-side { display: flex; align-items: center; gap: 10px; }
+
+.chip {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cream-soft);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+
+.chip:hover { border-color: var(--nerve); color: var(--cream); }
+
+.tagline {
+  color: var(--cream-soft);
+  font-size: 16px;
+  max-width: 40em;
+  margin-bottom: 26px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--cream-soft);
+  margin-bottom: 26px;
+  flex-wrap: wrap;
+}
+
+.dot-led {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--cream-faint);
+  flex: none;
+}
+.status[data-state="ok"] .dot-led { background: var(--grip); }
+.status[data-state="warn"] .dot-led { background: var(--gold); }
+.status[data-state="bad"] .dot-led { background: var(--nerve); }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 26px 24px;
+  margin-bottom: 18px;
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--cream-faint);
+  display: block;
+  margin-bottom: 12px;
+}
+
+h2 {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 30px;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  margin-bottom: 12px;
+}
+
+h3 {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cream-soft);
+  margin-bottom: 14px;
+}
+
+p + p { margin-top: 12px; }
+
+.muted { color: var(--cream-soft); font-size: 14.5px; }
+
+.seeds { display: grid; gap: 10px; margin: 18px 0; }
+
+.seed {
+  text-align: left;
+  font: inherit;
+  color: var(--cream);
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-left: 3px solid transparent;
+  border-radius: 10px;
+  padding: 13px 15px;
+  cursor: pointer;
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.seed:hover { border-left-color: var(--nerve); transform: translateX(3px); }
+.seed[aria-pressed="true"] { border-left-color: var(--nerve); background: var(--panel-soft); box-shadow: inset 0 0 0 1px var(--nerve); }
+.seed b { font-weight: 600; display: block; }
+.seed span { color: var(--cream-soft); font-size: 13.5px; }
+
+input[type="text"], select, textarea {
+  font: inherit;
+  width: 100%;
+  color: var(--cream);
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+textarea { resize: vertical; min-height: 60px; }
+
+label.field { display: block; margin-bottom: 14px; }
+label.field > span {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cream-faint);
+  margin-bottom: 6px;
+}
+
+.btn {
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 15px;
+  color: #fff;
+  background: var(--nerve-deep);
+  border: none;
+  border-radius: 10px;
+  padding: 13px 22px;
+  cursor: pointer;
+  transition: background 140ms ease, transform 140ms ease;
+}
+.btn:hover:not(:disabled) { background: var(--nerve); transform: translateY(-1px); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.ghost { background: none; color: var(--cream); border: 1px solid var(--line); }
+.btn.ghost:hover:not(:disabled) { background: var(--panel-soft); border-color: var(--nerve); }
+
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+/* ---- meters ---- */
+
+.meters {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 18px;
+  padding: 14px 18px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.meter-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cream-faint);
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.meter-label b { color: var(--cream); font-weight: 600; }
+
+.bar { height: 6px; border-radius: 999px; background: var(--panel-soft); overflow: hidden; }
+.bar > i { display: block; height: 100%; border-radius: 999px; transition: width 520ms cubic-bezier(.2,.8,.2,1); }
+.bar.nerve > i { background: var(--nerve); }
+.bar.grip > i { background: var(--grip); }
+
+.scene-count {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--cream-soft);
+  white-space: nowrap;
+}
+
+/* ---- story ---- */
+
+.prose { font-size: 17.5px; line-height: 1.65; }
+.prose em { font-style: italic; color: var(--cream-soft); }
+
+.choices { display: grid; gap: 10px; margin-top: 20px; }
+
+.choice {
+  text-align: left;
+  font: inherit;
+  font-size: 15.5px;
+  color: var(--cream);
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 14px 16px 14px 44px;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+.choice:hover:not(:disabled) { border-color: var(--nerve); transform: translateX(3px); }
+.choice:disabled { opacity: 0.4; cursor: default; }
+.choice::before {
+  content: attr(data-key);
+  position: absolute;
+  left: 15px; top: 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--nerve);
+}
+
+.freeform { margin-top: 14px; display: flex; gap: 8px; }
+.freeform input { flex: 1; }
+
+/* ---- judgement ---- */
+
+.judge { border-color: var(--nerve); }
+
+.axes { display: grid; gap: 13px; margin-bottom: 18px; }
+
+.axis-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cream-faint);
+  margin-bottom: 5px;
+}
+.axis-head b { color: var(--cream); font-weight: 600; letter-spacing: 0.02em; text-transform: none; font-size: 12.5px; }
+
+.spread { display: flex; gap: 2px; height: 22px; border-radius: 5px; overflow: hidden; background: var(--panel-soft); }
+.spread > i {
+  display: block;
+  background: var(--nerve-deep);
+  transition: flex-grow 420ms ease;
+  min-width: 1px;
+  position: relative;
+}
+.spread > i[data-picked="1"] { background: var(--nerve); }
+.spread > i[data-dim="1"] { background: var(--cream-faint); }
+
+.axis-foot {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--cream-faint);
+  margin-top: 5px;
+}
+
+.band {
+  font-family: var(--display);
+  font-size: 26px;
+  margin-bottom: 8px;
+}
+.band[data-band="4"], .band[data-band="3"] { color: var(--grip); }
+.band[data-band="2"] { color: var(--gold); }
+.band[data-band="1"], .band[data-band="0"] { color: var(--nerve); }
+
+.deltas { font-family: var(--mono); font-size: 12.5px; color: var(--cream-soft); margin-bottom: 16px; }
+.deltas b.up { color: var(--grip); }
+.deltas b.down { color: var(--nerve); }
+
+/* ---- verdict ---- */
+
+.verdict-title { font-family: var(--display); font-size: clamp(34px, 8vw, 46px); line-height: 1.05; margin-bottom: 6px; }
+.verdict-sub { color: var(--cream-soft); margin-bottom: 20px; }
+
+.tally { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.tally div { background: var(--panel-soft); border-radius: 10px; padding: 12px 14px; }
+.tally dt { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cream-faint); }
+.tally dd { font-family: var(--mono); font-size: 20px; font-weight: 600; margin-top: 3px; }
+
+.log { margin-top: 10px; }
+.log details { border-top: 1px solid var(--line); padding: 10px 0; }
+.log summary { cursor: pointer; font-size: 14.5px; }
+.log summary::marker { color: var(--nerve); }
+.log .log-body { color: var(--cream-soft); font-size: 14px; margin-top: 8px; }
+.log .log-meta { font-family: var(--mono); font-size: 11px; color: var(--cream-faint); margin-top: 6px; }
+
+.share { font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap; background: var(--panel-soft); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+
+/* ---- thinking ---- */
+
+.thinking { display: flex; align-items: center; gap: 12px; font-family: var(--mono); font-size: 12.5px; color: var(--cream-soft); }
+.thinking .pulse {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--nerve);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 0.25; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.25); } }
+
+.error { border-color: var(--nerve); }
+.error code, code {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--panel-soft);
+  border-radius: 5px;
+  padding: 2px 6px;
+  overflow-wrap: anywhere;
+}
+pre.setup {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--panel-soft);
+  border-radius: 10px;
+  padding: 14px;
+  margin: 12px 0;
+  overflow-x: auto;
+}
+
+dialog {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--cream);
+  padding: 26px 24px;
+  width: min(480px, calc(100vw - 32px));
+  font-family: var(--body);
+}
+dialog::backdrop { background: rgba(6, 5, 9, 0.7); }
+
+.also {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--cream-faint);
+  margin-top: 28px;
+}
+.also a { color: var(--cream-soft); }
+
+[hidden] { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before { animation: none !important; transition: none !important; }
+}
+
+@media (max-width: 520px) {
+  .meters { grid-template-columns: 1fr 1fr; }
+  .scene-count { grid-column: 1 / -1; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="masthead">
+  <h1 class="wordmark">Nerve<span class="dot">.</span></h1>
+  <div class="masthead-side">
+    <button class="chip" id="themeBtn" type="button">Nightshift</button>
+    <button class="chip" id="setupBtn" type="button">Models</button>
+  </div>
+</header>
+
+<p class="tagline">A choose-your-own-adventure that never leaves your machine. A local model narrates;
+  <b>Nimble</b> — a 9B decision model — rates every choice you make, and its own probabilities decide how it lands.</p>
+
+<div class="status" id="status" data-state="idle">
+  <span class="dot-led"></span><span id="statusText">Checking Ollama…</span>
+</div>
+
+<!-- ============ setup / connection trouble ============ -->
+<section class="panel error" id="connPanel" hidden>
+  <span class="eyebrow">Not connected</span>
+  <h2>Nerve needs Ollama running locally</h2>
+  <p class="muted" id="connWhy"></p>
+  <pre class="setup" id="connFix"></pre>
+  <div class="row">
+    <button class="btn" id="retryBtn" type="button">Try again</button>
+    <button class="btn ghost" id="connSetupBtn" type="button">Model settings</button>
+  </div>
+</section>
+
+<!-- ============ start ============ -->
+<section class="panel" id="startPanel" hidden>
+  <span class="eyebrow">New run</span>
+  <h2>Pick something to walk into.</h2>
+  <p class="muted">Eight scenes. Every choice gets scored on nerve and judgement before the story moves —
+    and a bad read costs you grip.</p>
+
+  <div class="seeds" id="seedList"></div>
+
+  <label class="field">
+    <span>Or write your own opening</span>
+    <input type="text" id="seedCustom" maxlength="140" placeholder="A lighthouse, a storm, and someone else's handwriting in your logbook">
+  </label>
+
+  <div class="row">
+    <button class="btn" id="beginBtn" type="button">Begin</button>
+    <span class="muted" id="beginNote"></span>
+  </div>
+</section>
+
+<!-- ============ play ============ -->
+<section id="playWrap" hidden>
+  <div class="meters">
+    <div>
+      <div class="meter-label"><span>Nerve</span><b id="nerveVal">50</b></div>
+      <div class="bar nerve"><i id="nerveBar" style="width:50%"></i></div>
+    </div>
+    <div>
+      <div class="meter-label"><span>Grip</span><b id="gripVal">100</b></div>
+      <div class="bar grip"><i id="gripBar" style="width:100%"></i></div>
+    </div>
+    <div class="scene-count" id="sceneCount">Scene 1 / 8</div>
+  </div>
+
+  <section class="panel" id="scenePanel">
+    <span class="eyebrow" id="sceneEyebrow">Scene one</span>
+    <div class="prose" id="sceneProse"></div>
+    <div class="choices" id="choiceList"></div>
+    <form class="freeform" id="freeForm">
+      <input type="text" id="freeInput" maxlength="120" placeholder="…or do something else entirely">
+      <button class="btn ghost" type="submit">Act</button>
+    </form>
+  </section>
+
+  <section class="panel judge" id="judgePanel" hidden>
+    <span class="eyebrow">Nimble's read — <span id="judgeMs"></span></span>
+    <p class="muted" id="judgeAction"></p>
+    <div class="axes" id="axes"></div>
+    <div class="band" id="bandLabel"></div>
+    <div class="deltas" id="deltas"></div>
+    <div class="prose" id="outcomeProse"></div>
+    <div class="row" style="margin-top:18px">
+      <button class="btn" id="continueBtn" type="button">Go on</button>
+    </div>
+  </section>
+
+  <section class="panel" id="busyPanel" hidden>
+    <div class="thinking"><span class="pulse"></span><span id="busyText">Writing the scene…</span></div>
+  </section>
+</section>
+
+<!-- ============ verdict ============ -->
+<section class="panel" id="endPanel" hidden>
+  <span class="eyebrow">Run over</span>
+  <div class="verdict-title" id="endTitle"></div>
+  <p class="verdict-sub" id="endSub"></p>
+  <div class="prose" id="endProse" style="margin-bottom:22px"></div>
+
+  <dl class="tally" id="endTally"></dl>
+
+  <h3>Share</h3>
+  <div class="share" id="shareText"></div>
+  <div class="row">
+    <button class="btn" id="copyBtn" type="button">Copy</button>
+    <button class="btn ghost" id="againBtn" type="button">New run</button>
+  </div>
+
+  <h3 style="margin-top:26px">The record</h3>
+  <div class="log" id="endLog"></div>
+</section>
+
+<p class="also">Also on the shelf:
+  <a href="/reckon/">Reckon</a> ·
+  <a href="/dealt/">Dealt</a> ·
+  <a href="/herded/">Herded</a> ·
+  <a href="/minted/">Minted</a> ·
+  <a href="/">everything else</a>
+</p>
+
+</div>
+
+<!-- ============ settings ============ -->
+<dialog id="setupDialog">
+  <h3 style="margin-bottom:18px">Local models</h3>
+  <label class="field">
+    <span>Ollama endpoint</span>
+    <input type="text" id="cfgHost" placeholder="http://localhost:11434">
+  </label>
+  <label class="field">
+    <span>Narrator — writes the story</span>
+    <select id="cfgNarrator"></select>
+  </label>
+  <label class="field">
+    <span>Judge — rates your choices</span>
+    <select id="cfgJudge"></select>
+  </label>
+  <label class="field">
+    <span>Scenes per run</span>
+    <input type="text" id="cfgScenes" inputmode="numeric" maxlength="2">
+  </label>
+  <p class="muted" id="cfgNote" style="margin-bottom:18px"></p>
+  <div class="row">
+    <button class="btn" id="cfgSave" type="button">Save</button>
+    <button class="btn ghost" id="cfgRefresh" type="button">Rescan models</button>
+    <button class="btn ghost" id="cfgClose" type="button">Close</button>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+
+/* ===================================================================
+   Config
+   =================================================================== */
+
+const CFG_KEY = "nerve-config-v1";
+const STATS_KEY = "nerve-stats-v1";
+
+const DEFAULTS = {
+  host: "http://localhost:11434",
+  narrator: "",
+  judge: "nimble",
+  scenes: 8
+};
+
+function loadCfg() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(CFG_KEY) || "{}"); } catch (e) {}
+  return Object.assign({}, DEFAULTS, saved);
+}
+function saveCfg(cfg) {
+  try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch (e) {}
+}
+
+let cfg = loadCfg();
+let installed = [];
+
+/* ===================================================================
+   Nimble — the decision model.
+
+   Nimble does not generate text. It answers typed questions about a
+   block of state and returns a probability distribution per question,
+   via Ollama's /v1/systemone endpoint. Everything downstream of a
+   choice is driven by these numbers.
+   =================================================================== */
+
+const NERVE_LEVELS = [
+  "timid — the player avoids commitment entirely",
+  "cautious — a safe, small move",
+  "steady — a fair risk, openly taken",
+  "bold — the player puts something real on the line",
+  "reckless — the player gambles everything on it"
+];
+
+const JUDGE_LEVELS = [
+  "foolish — misreads the scene badly",
+  "weak — plausible, but the scene punishes it",
+  "workable — neither clever nor costly",
+  "sharp — reads the scene and uses it",
+  "brilliant — turns the whole scene around"
+];
+
+const APPROACHES = {
+  force:   "violence, threat, speed or brute physical effort",
+  guile:   "deception, theft, bribery, stealth or misdirection",
+  words:   "honest talk, persuasion, negotiation or appeal",
+  caution: "watching, waiting, retreating or gathering information",
+  strange: "an unexpected, absurd or symbolic act that fits no other approach"
+};
+
+const QUESTIONS = {
+  nerve:    { type: "score",  instructions: "How much nerve does the player's action show, given what the scene is asking of them?", criteria: NERVE_LEVELS },
+  judgement:{ type: "score",  instructions: "How well-judged is the player's action? Consider only the facts of the scene and whether the action plausibly works.", criteria: JUDGE_LEVELS },
+  approach: { type: "choice", instructions: "Which approach does the player's action take?", criteria: APPROACHES },
+  danger:   { type: "noul",   instructions: "Does the action expose the player to immediate physical or social danger?" },
+  progress: { type: "noul",   instructions: "Does the action move the player closer to their stated goal?" }
+};
+
+async function askNimble(scene, action, goal) {
+  const state = {
+    goal: goal,
+    scene: scene,
+    player_action: action
+  };
+  const res = await fetch(cfg.host.replace(/\/+$/, "") + "/v1/systemone", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: cfg.judge, state: state, questions: QUESTIONS, keep_alive: "10m" })
+  });
+  if (!res.ok) throw new Error("Nimble returned " + res.status + " — " + (await res.text()).slice(0, 200));
+  const data = await res.json();
+  if (data.error) throw new Error("Nimble: " + data.error);
+  return data.answers;
+}
+
+/* Draw an index from a probability map. Nimble's spread IS the dice:
+   a confident read plays out the way it read, a torn one is a coin toss. */
+function sampleSpread(probabilities) {
+  const keys = Object.keys(probabilities).sort((a, b) => Number(a) - Number(b));
+  let roll = Math.random();
+  for (const k of keys) {
+    roll -= probabilities[k];
+    if (roll <= 0) return Number(k);
+  }
+  return Number(keys[keys.length - 1]);
+}
+
+/* ===================================================================
+   Narrator — any local chat model. Nimble cannot write prose, so the
+   story comes from a second model and Nimble only ever judges.
+   =================================================================== */
+
+const NARRATOR_SYSTEM =
+  "You are the narrator of a tense, second-person interactive story. " +
+  "Write in present tense, addressing the player as 'you'. Be concrete and sensory; " +
+  "no preamble, no meta-commentary, no headings, no markdown. " +
+  "Scenes are 50-90 words and always end with the player facing a live decision. " +
+  "Choices are 6-14 words each, distinct in approach, and never signal which is correct. " +
+  "The prose field is narration only: never list the options inside it, never ask 'what do you do', " +
+  "and never invent the player's decision for them. Reply with JSON only.";
+
+const SCENE_SCHEMA = {
+  type: "object",
+  properties: {
+    goal: { type: "string" },
+    prose: { type: "string" },
+    choices: { type: "array", items: { type: "string" }, minItems: 3, maxItems: 3 }
+  },
+  required: ["goal", "prose", "choices"]
+};
+
+const BEAT_SCHEMA = {
+  type: "object",
+  properties: {
+    outcome: { type: "string" },
+    prose: { type: "string" },
+    choices: { type: "array", items: { type: "string" }, minItems: 3, maxItems: 3 }
+  },
+  required: ["outcome", "prose", "choices"]
+};
+
+const FINALE_SCHEMA = {
+  type: "object",
+  properties: {
+    outcome: { type: "string" },
+    epilogue: { type: "string" }
+  },
+  required: ["outcome", "epilogue"]
+};
+
+async function narrate(messages, schema, maxTokens) {
+  const res = await fetch(cfg.host.replace(/\/+$/, "") + "/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: cfg.narrator,
+      stream: false,
+      format: schema,
+      keep_alive: "10m",
+      think: false,
+      options: { temperature: 0.9, top_p: 0.95, num_predict: maxTokens || 520 },
+      messages: [{ role: "system", content: NARRATOR_SYSTEM }].concat(messages)
+    })
+  });
+  if (!res.ok) throw new Error("Narrator returned " + res.status + " — " + (await res.text()).slice(0, 200));
+  const data = await res.json();
+  const raw = (data.message && data.message.content || "").trim();
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    const grab = raw.match(/\{[\s\S]*\}/);
+    if (grab) return JSON.parse(grab[0]);
+    throw new Error("Narrator did not return usable JSON. Try a different model.");
+  }
+}
+
+/* Small narrators append their own option list to the narration however
+   firmly they are told not to. */
+function cleanProse(text) {
+  return String(text || "")
+    .split(/\s*(?:what (?:do|will) you do|your (?:options|choices) (?:are|:)|choose one|do you)\b[\s\S]*$/i)[0]
+    .replace(/[\s,;:—-]+$/, "")
+    .trim();
+}
+
+/* ===================================================================
+   Outcome bands — how a judged action is allowed to land
+   =================================================================== */
+
+const BANDS = [
+  { key: "disaster", label: "It goes badly wrong.",  brief: "The action fails and costs the player something real.", grip: -26, nerve: -6 },
+  { key: "setback",  label: "It doesn't hold.",      brief: "The action falls short and the situation tightens.",     grip: -13, nerve: -2 },
+  { key: "mixed",    label: "It half works.",        brief: "The action partly works but drags a complication with it.", grip: -4, nerve: 1 },
+  { key: "gain",     label: "It lands.",             brief: "The action works and opens the way forward.",            grip: 4,  nerve: 5 },
+  { key: "triumph",  label: "It lands perfectly.",   brief: "The action works better than the player had any right to expect.", grip: 9, nerve: 9 }
+];
+
+function bandFor(judgement) {
+  const nerveIdx = sampleSpread(judgement.nerve.probabilities);
+  const judgeIdx = sampleSpread(judgement.judgement.probabilities);
+  const danger = judgement.danger.noul;
+  const progress = judgement.progress.noul;
+
+  let v = judgeIdx * 0.62 + nerveIdx * 0.38;
+  if (danger > 0.65) v -= 0.9;
+  else if (danger > 0.45) v -= 0.35;
+  if (progress > 0.6) v += 0.55;
+  else if (progress < 0.25) v -= 0.4;
+
+  const idx = Math.max(0, Math.min(4, Math.round(v)));
+  return { idx: idx, nerveIdx: nerveIdx, judgeIdx: judgeIdx, danger: danger, progress: progress };
+}
+
+/* ===================================================================
+   Offline deck — playable with Nimble alone, no narrator installed.
+   =================================================================== */
+
+const DECK_GOAL = "Get through the night shift at the Marlowe and out the front door alive.";
+
+const DECK = [
+  {
+    prose: "The Marlowe's lobby is all brass and hush at two in the morning. You are the only one on the desk, and the guest book in front of you has your handwriting in it — an entry for room 611, signed an hour before your shift began. You do not remember writing it. The lift indicator above the doors is climbing on its own.",
+    choices: ["Take the stairs up to 611 before the lift gets there", "Call the number listed beside the 611 entry", "Tear the page out and put the book back exactly as it was"]
+  },
+  {
+    prose: "The sixth-floor corridor smells of wet plaster. Room 611's door is ajar on a chain, and the light inside is on. Somebody has stacked every towel in the room against the base of the door, as if to stop something getting under it. A woman's voice, very calm, says: \"Don't turn the lights off out there. Whatever they tell you.\"",
+    choices: ["Ask her who told you to come up", "Break the chain and go in", "Back off down the corridor and keep the lights burning"]
+  },
+  {
+    prose: "The corridor lights die one bank at a time, from the far end, walking towards you. Behind you the fire door opens onto a stairwell you know goes down nine floors, though the Marlowe has six. The service phone on the wall begins to ring — an internal call, from the front desk you left empty.",
+    choices: ["Pick up the service phone", "Go down the stairwell and count the floors", "Hold the fire door shut and wait for the ringing to stop"]
+  },
+  {
+    prose: "In the manager's office the CCTV bank shows every floor at once. On seven monitors you are still at the desk, writing in the guest book, over and over, at different hours of a night that hasn't happened. The eighth monitor shows this office, from behind you. The office door does not have a lock.",
+    choices: ["Watch the eighth monitor and don't move", "Rip the cables out of the CCTV bank", "Find the shift roster and see whose name is next to yours"]
+  },
+  {
+    prose: "The roster names a night porter who worked here in 1974 and never clocked out. Somebody has written your name beneath his in the same blue ink. The kitchen door swings; there is the sound of a pan being set down carefully on a cold ring. Whoever is in there is being polite about it.",
+    choices: ["Go into the kitchen and say good evening", "Scratch your name off the roster", "Prop the kitchen door open and go back to the lobby"]
+  },
+  {
+    prose: "The front doors are glass, and past them the street is exactly right — wet, orange, empty. The doors will not open. Above the frame the brass plate that should read MARLOWE HOTEL reads MARLOWE HOTEL, 1974. The woman from 611 is coming down the main stairs with a suitcase, and she is not in a hurry.",
+    choices: ["Wait for her and ask what she paid to be allowed to leave", "Put a chair through the glass", "Go back to the desk and sign yourself out of the book"]
+  },
+  {
+    prose: "She sets the suitcase down. \"Two ways out,\" she says. \"You give it a night that isn't yours, or you give it a name that isn't yours. It doesn't check very hard.\" The book is open on the desk behind you. The lift indicator has started climbing again, and the hour hand on the lobby clock is going backwards, patiently.",
+    choices: ["Sign the porter's 1974 name into the book", "Sign your own name and date it tomorrow", "Take the suitcase from her and open it"]
+  },
+  {
+    prose: "Whatever you wrote, the ink is drying. The lift reaches the ground floor and the doors begin to part on a light too warm for this building. Somewhere above, every door in the Marlowe unlatches at once, a sound like applause. This is the last thing the night will let you decide.",
+    choices: ["Walk into the lift", "Turn your back on it and try the front doors again", "Stand exactly where you are until morning"]
+  }
+];
+
+const DECK_OUTCOMES = [
+  ["The night takes the cost out of you directly; you lose a piece of the hour and come back to yourself further along the corridor than you started.",
+   "It doesn't take. Something in the building notices the attempt and files it away.",
+   "It works, and the Marlowe gives a little ground — a door that opens, a light that stays on."],
+  ["The chain goes slack on its own and the room is empty, towels and all. The voice keeps talking behind you.",
+   "She stops talking. The gap under the door darkens for a moment and then doesn't.",
+   "She tells you a true thing, and it is the first true thing you have been told all night."],
+  ["The ringing stops when you are nine floors down a six-floor building.",
+   "Whatever was on the other end has your shift pattern and reads it back to you slowly.",
+   "You get the timing right and the dark stops walking towards you, one bank short."],
+  ["The eighth monitor is the only one still on when you look up, and it has moved closer.",
+   "The cables are warm. Every screen comes back, and there are nine now.",
+   "You find what you were meant to find, and the office lets you leave with it."],
+  ["The pan is set down again, nearer. You do not get to the lobby before it is set down a third time.",
+   "The kitchen accepts the gesture and returns nothing, which is its own answer.",
+   "Good manners work on the Marlowe better than anything else has all night."],
+  ["The glass is not glass, and the street beyond it does not care what you do to it.",
+   "She watches you try, and the trying costs you something she can see.",
+   "She waits for you, which means she has decided you are worth the wait."],
+  ["The ink refuses the name. The book takes something else instead, and doesn't say what.",
+   "It is accepted, provisionally, at a rate you will find out about later.",
+   "The book closes itself, satisfied, and the lobby clock starts running forwards again."],
+  ["The lift is patient about it. Whatever walks out of the Marlowe at six is wearing your coat and does not check the guest book on the way past.",
+   "You get out. Something of the night comes with you, and settles, and waits to be needed.",
+   "Morning finds the doors unlocked and the book closed. Nobody has worked the Marlowe's night desk since."]
+];
+
+function deckOutcome(sceneIdx, bandIdx) {
+  const tier = bandIdx <= 1 ? 0 : bandIdx === 2 ? 1 : 2;
+  return DECK_OUTCOMES[sceneIdx % DECK_OUTCOMES.length][tier] || "";
+}
+
+/* ===================================================================
+   Seeds
+   =================================================================== */
+
+const SEEDS = [
+  { title: "The last train out", blurb: "A quarantined town, a platform, and twenty minutes of it.", prompt: "The player is trying to get on the last train out of a town that has been quarantined since dawn. They have twenty minutes and no papers." },
+  { title: "Something in the ice", blurb: "A polar station, four people, one that isn't.", prompt: "The player is a mechanic at a remote polar research station. The winter crew is four people. Last night one of them stopped being one of them." },
+  { title: "The auction", blurb: "You are bidding on something you must not win.", prompt: "The player is at a private auction in a city house, under a false name, bidding on a lot they have been paid to lose — and the reserve has just been met by someone they recognise." },
+  { title: "Low orbit, no answer", blurb: "The station is fine. Nobody is answering.", prompt: "The player has docked with an orbital station that is fully powered, fully pressurised, and not responding to hails. Their own craft has four hours of air." },
+  { title: "The wrong inheritance", blurb: "A house, a will, and a room they kept locked.", prompt: "The player has inherited a house from a relative they never met. The solicitor was careful to mention the east room, and then careful not to." },
+  { title: "Debt collection", blurb: "You owe the kind of people who send someone.", prompt: "The player owes money to people who do not use courts. Someone has been sent. The player has until the end of the night to find something worth more than the debt." }
+];
+
+/* ===================================================================
+   Game state
+   =================================================================== */
+
+const game = {
+  mode: "deck",
+  seed: null,
+  goal: "",
+  scene: 0,
+  nerve: 50,
+  grip: 100,
+  choices: [],
+  history: [],
+  log: [],
+  approach: {},
+  pending: null,
+  startedAt: 0
+};
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function setMeters() {
+  game.nerve = Math.max(0, Math.min(100, Math.round(game.nerve)));
+  game.grip = Math.max(0, Math.min(100, Math.round(game.grip)));
+  $("nerveVal").textContent = game.nerve;
+  $("gripVal").textContent = game.grip;
+  $("nerveBar").style.width = game.nerve + "%";
+  $("gripBar").style.width = game.grip + "%";
+  $("sceneCount").textContent = "Scene " + Math.min(game.scene + 1, cfg.scenes) + " / " + cfg.scenes;
+}
+
+const ORDINALS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+
+function showBusy(text) {
+  $("busyText").textContent = text;
+  $("busyPanel").hidden = false;
+  $("scenePanel").hidden = true;
+  $("judgePanel").hidden = true;
+}
+
+function renderScene(prose, choices) {
+  $("busyPanel").hidden = true;
+  $("judgePanel").hidden = true;
+  $("scenePanel").hidden = false;
+  $("freeForm").hidden = false;
+  $("freeInput").disabled = false;
+  $("sceneEyebrow").textContent = "Scene " + (ORDINALS[game.scene] || game.scene + 1) +
+    (game.scene === cfg.scenes - 1 ? " — last" : "");
+  $("sceneProse").innerHTML = "<p>" + esc(prose).replace(/\n+/g, "</p><p>") + "</p>";
+  game.choices = choices;
+  $("choiceList").innerHTML = choices.map((c, i) =>
+    '<button class="choice" type="button" data-i="' + i + '" data-key="' + "ABC"[i] + '">' + esc(c) + "</button>"
+  ).join("");
+  $("freeInput").value = "";
+  setMeters();
+  $("scenePanel").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function lockChoices() {
+  document.querySelectorAll(".choice").forEach((b) => { b.disabled = true; });
+  $("freeInput").disabled = true;
+}
+
+/* ---- judgement panel ---- */
+
+function renderAxes(j, picked) {
+  const rows = [];
+
+  rows.push(axisScore("Nerve", j.nerve, NERVE_LEVELS, picked.nerveIdx));
+  rows.push(axisScore("Judgement", j.judgement, JUDGE_LEVELS, picked.judgeIdx));
+
+  const ap = j.approach;
+  const apKeys = Object.keys(ap.probabilities);
+  rows.push(
+    '<div><div class="axis-head"><span>Approach</span><b>' + esc(ap.choice) + "</b></div>" +
+    '<div class="spread">' + apKeys.map((k) =>
+      '<i style="flex-grow:' + Math.max(ap.probabilities[k], 0.004) + '"' +
+      (k === ap.choice ? ' data-picked="1"' : ' data-dim="1"') + ' title="' + esc(k) + " " + pct(ap.probabilities[k]) + '"></i>'
+    ).join("") + "</div>" +
+    '<div class="axis-foot">confidence ' + pct(ap.confidence) + "</div></div>"
+  );
+
+  rows.push(noulRow("Danger", j.danger.noul));
+  rows.push(noulRow("Progress", j.progress.noul));
+
+  $("axes").innerHTML = rows.join("");
+}
+
+function pct(p) { return Math.round(p * 100) + "%"; }
+
+function axisScore(name, ans, levels, pickedIdx) {
+  const label = levels[pickedIdx].split(" — ")[0];
+  return '<div><div class="axis-head"><span>' + name + '</span><b>' + esc(label) + "</b></div>" +
+    '<div class="spread">' + levels.map((lv, i) =>
+      '<i style="flex-grow:' + Math.max(ans.probabilities[i] || 0.004, 0.004) + '"' +
+      (i === pickedIdx ? ' data-picked="1"' : ' data-dim="1"') +
+      ' title="' + esc(lv) + " " + pct(ans.probabilities[i] || 0) + '"></i>'
+    ).join("") + "</div>" +
+    '<div class="axis-foot">reads ' + ans.score.toFixed(2) + " / 4 · confidence " + pct(ans.confidence) +
+    (pickedIdx !== Math.round(ans.score) ? " · the spread rolled " + esc(label.toLowerCase()) : "") +
+    "</div></div>";
+}
+
+function noulRow(name, v) {
+  return '<div><div class="axis-head"><span>' + name + '</span><b>' + pct(v) + '</b></div>' +
+    '<div class="spread"><i style="flex-grow:' + Math.max(v, 0.004) + '" data-picked="1"></i>' +
+    '<i style="flex-grow:' + Math.max(1 - v, 0.004) + '" data-dim="1"></i></div></div>';
+}
+
+function renderDeltas(dGrip, dNerve) {
+  const bit = (label, v) => label + " <b class=\"" + (v >= 0 ? "up" : "down") + "\">" + (v >= 0 ? "+" : "") + v + "</b>";
+  $("deltas").innerHTML = bit("Grip", dGrip) + " &nbsp; " + bit("Nerve", dNerve);
+}
+
+/* ===================================================================
+   Turn flow
+   =================================================================== */
+
+function recentHistory(n) {
+  return game.history.slice(-n).map((h) =>
+    "SCENE: " + h.scene + "\nPLAYER: " + h.action + "\nRESULT: " + h.outcome
+  ).join("\n\n");
+}
+
+async function startRun(seed) {
+  game.seed = seed;
+  game.scene = 0;
+  game.nerve = 50;
+  game.grip = 100;
+  game.history = [];
+  game.log = [];
+  game.approach = {};
+  game.startedAt = Date.now();
+
+  $("startPanel").hidden = true;
+  $("endPanel").hidden = true;
+  $("playWrap").hidden = false;
+  setMeters();
+
+  if (game.mode === "deck") {
+    game.goal = DECK_GOAL;
+    renderScene(DECK[0].prose, DECK[0].choices);
+    return;
+  }
+
+  showBusy("Setting the scene…");
+  try {
+    const out = await narrate([{
+      role: "user",
+      content: "Open a new story.\n\nPREMISE: " + seed.prompt +
+        "\n\nWrite the opening scene. Also state the player's goal for the whole story in one short sentence " +
+        "(field 'goal'), phrased as something they are trying to achieve."
+    }], SCENE_SCHEMA);
+    game.goal = out.goal;
+    renderScene(cleanProse(out.prose), out.choices.slice(0, 3));
+  } catch (e) {
+    failTo(e);
+  }
+}
+
+async function takeAction(action) {
+  lockChoices();
+  const sceneText = $("sceneProse").textContent.trim();
+  $("busyText").textContent = "Nimble is reading it…";
+  $("busyPanel").hidden = false;
+  $("judgePanel").hidden = true;
+
+  let judgement, ms;
+  try {
+    const t0 = performance.now();
+    judgement = await askNimble(sceneText, action, game.goal);
+    ms = Math.round(performance.now() - t0);
+  } catch (e) {
+    return failTo(e);
+  }
+
+  const picked = bandFor(judgement);
+  const band = BANDS[picked.idx];
+
+  let dGrip = band.grip;
+  let dNerve = band.nerve + (picked.nerveIdx - 2) * 4;
+  if (picked.danger > 0.6 && picked.idx <= 1) dGrip -= 6;
+  dGrip = Math.round(dGrip);
+  dNerve = Math.round(dNerve);
+
+  game.grip += dGrip;
+  game.nerve += dNerve;
+
+  const ap = judgement.approach.choice;
+  game.approach[ap] = (game.approach[ap] || 0) + 1;
+
+  $("judgeMs").textContent = ms + "ms";
+  $("judgeAction").textContent = "“" + action + "”";
+  renderAxes(judgement, picked);
+  $("bandLabel").textContent = band.label;
+  $("bandLabel").dataset.band = String(picked.idx);
+  renderDeltas(dGrip, dNerve);
+  setMeters();
+
+  game.pending = { action: action, sceneText: sceneText, band: band, picked: picked, judgement: judgement, ms: ms };
+
+  const last = game.scene >= cfg.scenes - 1 || game.grip <= 0;
+  $("continueBtn").textContent = last ? "See how it ends" : "Go on";
+  $("outcomeProse").innerHTML = "";
+
+  $("busyPanel").hidden = true;
+  $("judgePanel").hidden = false;
+  $("freeForm").hidden = true;
+  $("judgePanel").scrollIntoView({ behavior: "smooth", block: "start" });
+
+  if (game.mode === "deck") {
+    const text = deckOutcome(game.scene, picked.idx);
+    if (text) $("outcomeProse").innerHTML = "<p>" + esc(text) + "</p>";
+    game.pending.outcome = text;
+  } else {
+    $("continueBtn").disabled = true;
+    try {
+      const out = last ? await finaleFromNarrator() : await beatFromNarrator();
+      game.pending.outcome = cleanProse(out.outcome);
+      game.pending.next = out;
+      $("outcomeProse").innerHTML = "<p>" + esc(game.pending.outcome) + "</p>";
+    } catch (e) {
+      return failTo(e);
+    }
+    $("continueBtn").disabled = false;
+  }
+}
+
+function beatFromNarrator() {
+  const p = game.pending;
+  return narrate([{
+    role: "user",
+    content:
+      "PREMISE: " + game.seed.prompt + "\nGOAL: " + game.goal +
+      (game.history.length ? "\n\nSTORY SO FAR:\n" + recentHistory(3) : "") +
+      "\n\nCURRENT SCENE:\n" + p.sceneText +
+      "\n\nTHE PLAYER DOES: " + p.action +
+      "\n\nA judging model rated that action. You must honour its verdict exactly:\n" +
+      "- outcome required: " + p.band.brief + "\n" +
+      "- the action was read as " + NERVE_LEVELS[p.picked.nerveIdx].split(" — ")[0] +
+      " in nerve and " + JUDGE_LEVELS[p.picked.judgeIdx].split(" — ")[0] + " in judgement\n" +
+      "- approach: " + p.judgement.approach.choice + "\n\n" +
+      "Write 'outcome': 40-70 words resolving the action at exactly that severity. " +
+      "Then write 'prose': the next scene, following on, ending on a fresh decision. " +
+      "Then 'choices': three ways to meet it."
+  }], BEAT_SCHEMA);
+}
+
+function finaleFromNarrator() {
+  const p = game.pending;
+  return narrate([{
+    role: "user",
+    content:
+      "PREMISE: " + game.seed.prompt + "\nGOAL: " + game.goal +
+      "\n\nSTORY SO FAR:\n" + recentHistory(4) +
+      "\n\nFINAL SCENE:\n" + p.sceneText +
+      "\n\nTHE PLAYER DOES: " + p.action +
+      "\n\nThis is the last action of the story. A judging model rated it: " + p.band.brief +
+      (game.grip <= 0 ? " The player is out of grip — they end this broken, caught or worse." : "") +
+      "\n\nWrite 'outcome': 40-70 words resolving the final action at exactly that severity. " +
+      "Then 'epilogue': 50-80 words closing the story for good. No choices, no questions."
+  }], FINALE_SCHEMA, 480);
+}
+
+function advance() {
+  const p = game.pending;
+  game.history.push({ scene: p.sceneText.slice(0, 400), action: p.action, outcome: p.outcome || p.band.label });
+  game.log.push({
+    scene: game.scene + 1,
+    action: p.action,
+    band: p.band,
+    ms: p.ms,
+    nerve: NERVE_LEVELS[p.picked.nerveIdx].split(" — ")[0],
+    judge: JUDGE_LEVELS[p.picked.judgeIdx].split(" — ")[0],
+    approach: p.judgement.approach.choice,
+    outcome: p.outcome || ""
+  });
+
+  const last = game.scene >= cfg.scenes - 1 || game.grip <= 0;
+  if (last) {
+    endRun(p);
+    return;
+  }
+
+  game.scene += 1;
+  if (game.mode === "deck") {
+    const s = DECK[game.scene % DECK.length];
+    renderScene(s.prose, s.choices);
+  } else {
+    renderScene(cleanProse(p.next.prose), p.next.choices.slice(0, 3));
+  }
+  game.pending = null;
+}
+
+function failTo(err) {
+  $("busyPanel").hidden = true;
+  $("playWrap").hidden = true;
+  $("connPanel").hidden = false;
+  $("connWhy").textContent = err.message || String(err);
+  $("connFix").textContent = fixHint();
+  setStatus("bad", "Call failed");
+}
+
+/* ===================================================================
+   Verdict — Nimble grades the whole run the same way it graded each turn
+   =================================================================== */
+
+const EPITHETS = {
+  "The Knife in the Dark": "consistently chose deception, theft, stealth or misdirection",
+  "The Straight Answer":   "consistently chose honesty, negotiation and open persuasion",
+  "The Battering Ram":     "consistently chose force, speed, threat or physical effort",
+  "The Long Look":         "consistently chose to watch, wait, withdraw or gather information",
+  "The Loose Cannon":      "chose wildly and inconsistently, with no discernible method",
+  "The Cold Hand":         "chose with calculation, switching approach to whatever the moment rewarded"
+};
+
+const CARRY_LEVELS = [
+  "fell apart and was carried out of it",
+  "survived it, barely, and at cost",
+  "came through it about even",
+  "came through it well and mostly intact",
+  "came through it clean, on their own terms"
+];
+
+async function gradeRun() {
+  const summary = game.log.map((l) =>
+    "Scene " + l.scene + ": " + l.action + " [" + l.approach + ", " + l.nerve + " nerve, " + l.judge + " judgement, " + l.band.key + "]"
+  ).join("\n");
+
+  return askNimbleRaw({
+    goal: game.goal,
+    final_nerve: game.nerve,
+    final_grip: game.grip,
+    run: summary
+  }, {
+    epithet: { type: "choice", instructions: "Which title best fits how this player played the whole run?", criteria: EPITHETS },
+    carry:   { type: "score",  instructions: "How well did the player come out of this run overall?", criteria: CARRY_LEVELS }
+  });
+}
+
+async function askNimbleRaw(state, questions) {
+  const res = await fetch(cfg.host.replace(/\/+$/, "") + "/v1/systemone", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: cfg.judge, state: state, questions: questions, keep_alive: "10m" })
+  });
+  if (!res.ok) throw new Error("Nimble returned " + res.status);
+  const data = await res.json();
+  if (data.error) throw new Error("Nimble: " + data.error);
+  return data.answers;
+}
+
+async function endRun(p) {
+  $("playWrap").hidden = true;
+  $("endPanel").hidden = false;
+  $("endTitle").textContent = "…";
+  $("endSub").textContent = "";
+  $("endProse").innerHTML = "";
+
+  let epithet = "The Loose Cannon", carryIdx = 2;
+  try {
+    const g = await gradeRun();
+    epithet = g.epithet.choice;
+    carryIdx = Math.round(g.carry.score);
+  } catch (e) { /* the run still ends without a grade */ }
+
+  $("endTitle").textContent = epithet;
+  $("endSub").textContent = "You " + CARRY_LEVELS[carryIdx] + ".";
+
+  const tail = game.mode === "deck"
+    ? (p.outcome || "") + (game.grip <= 0 ? " The Marlowe keeps the rest." : "")
+    : cleanProse(p.next && p.next.epilogue);
+  $("endProse").innerHTML = tail ? "<p>" + esc(tail) + "</p>" : "";
+
+  const mins = Math.max(1, Math.round((Date.now() - game.startedAt) / 60000));
+  const topApproach = Object.keys(game.approach).sort((a, b) => game.approach[b] - game.approach[a])[0] || "—";
+  const avgMs = Math.round(game.log.reduce((n, l) => n + l.ms, 0) / Math.max(game.log.length, 1));
+  const best = game.log.filter((l) => l.band.key === "triumph").length;
+
+  $("endTally").innerHTML = [
+    ["Nerve", game.nerve], ["Grip", game.grip], ["Scenes", game.log.length],
+    ["Approach", topApproach], ["Clean wins", best], ["Judged in", avgMs + "ms"]
+  ].map(([k, v]) => "<div><dt>" + k + "</dt><dd>" + esc(String(v)) + "</dd></div>").join("");
+
+  const FACES = { disaster: "\u{1F7E5}", setback: "\u{1F7E7}", mixed: "\u{1F7E8}", gain: "\u{1F7E9}", triumph: "\u{1F7E6}" };
+  const row = game.log.map((l) => FACES[l.band.key]).join("");
+  $("shareText").textContent =
+    "\u{1F3B2} Nerve - " + epithet + "\n" +
+    "You " + CARRY_LEVELS[carryIdx] + ".\n" +
+    row + "\n" +
+    "Nerve " + game.nerve + " / Grip " + game.grip + " / " + mins + " min\n" +
+    "Judged locally by nimble in " + avgMs + "ms a call\n\n" +
+    "https://jonezzyboy.github.io/nerve/";
+
+  $("endLog").innerHTML = game.log.map((l) =>
+    "<details><summary><b>" + l.scene + ".</b> " + esc(l.action) + "</summary>" +
+    "<div class=\"log-body\">" + esc(l.outcome) + "</div>" +
+    "<div class=\"log-meta\">" + esc(l.approach) + " · " + esc(l.nerve) + " nerve · " +
+    esc(l.judge) + " judgement · " + l.band.key + " · " + l.ms + "ms</div></details>"
+  ).join("");
+
+  try {
+    const stats = JSON.parse(localStorage.getItem(STATS_KEY) || "{}");
+    stats.runs = (stats.runs || 0) + 1;
+    stats.last = epithet;
+    localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+  } catch (e) {}
+
+  $("endPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* ===================================================================
+   Connection + model discovery
+   =================================================================== */
+
+function setStatus(state, text) {
+  $("status").dataset.state = state;
+  $("statusText").textContent = text;
+}
+
+function fixHint() {
+  const origin = location.origin === "null" || location.protocol === "file:" ? "null" : location.origin;
+  return "ollama serve                     # if it isn't running\n" +
+    "ollama pull nimble                # the judge\n" +
+    "ollama pull llama3.1:8b           # a narrator (any chat model works)\n\n" +
+    "# Ollama only accepts browser calls from origins it knows about.\n" +
+    "# This page is served from " + origin + ", so:\n" +
+    "launchctl setenv OLLAMA_ORIGINS \"" + origin + "\" && killall ollama\n\n" +
+    "# Serving the page from disk? Run it over http, not file://:\n" +
+    "python3 -m http.server 8383      # then open http://localhost:8383";
+}
+
+function chatCapable(m) {
+  const n = (m.name || "").toLowerCase();
+  return !/(^|\/)(nimble|nomic-embed|mxbai-embed|all-minilm|bge-|snowflake-arctic-embed)/.test(n);
+}
+
+async function probe() {
+  setStatus("idle", "Checking Ollama…");
+  try {
+    const res = await fetch(cfg.host.replace(/\/+$/, "") + "/api/tags");
+    if (!res.ok) throw new Error("Ollama returned " + res.status);
+    installed = (await res.json()).models || [];
+  } catch (e) {
+    $("connPanel").hidden = false;
+    $("startPanel").hidden = true;
+    $("connWhy").textContent =
+      "Couldn't reach Ollama at " + cfg.host + ". Either it isn't running, or it is refusing this page's origin (" +
+      (location.origin === "null" ? "file://" : location.origin) + ").";
+    $("connFix").textContent = fixHint();
+    setStatus("bad", "No Ollama at " + cfg.host);
+    return false;
+  }
+
+  const names = installed.map((m) => m.name);
+  const judges = names.filter((n) => /nimble/.test(n));
+  const narrators = names.filter((n) => chatCapable({ name: n }));
+
+  if (!judges.length) {
+    $("connPanel").hidden = false;
+    $("startPanel").hidden = true;
+    $("connWhy").textContent = "Ollama is up, but the nimble decision model isn't installed. Nerve needs it — it is the thing doing the judging.";
+    $("connFix").textContent = "ollama pull nimble";
+    setStatus("warn", "nimble not installed");
+    return false;
+  }
+
+  if (!judges.includes(cfg.judge)) cfg.judge = judges[0];
+  if (cfg.narrator && !narrators.includes(cfg.narrator)) cfg.narrator = "";
+  if (!cfg.narrator && narrators.length) cfg.narrator = narrators[0];
+  saveCfg(cfg);
+
+  game.mode = cfg.narrator ? "narrated" : "deck";
+
+  $("connPanel").hidden = true;
+  $("startPanel").hidden = false;
+  $("endPanel").hidden = true;
+  $("playWrap").hidden = true;
+
+  if (game.mode === "narrated") {
+    setStatus("ok", "judge " + cfg.judge + " · narrator " + cfg.narrator);
+    $("beginNote").textContent = "";
+    $("seedCustom").disabled = false;
+  } else {
+    setStatus("warn", "judge " + cfg.judge + " · no narrator installed");
+    $("beginNote").textContent = "No narrator yet — playing the built-in story.";
+    $("seedCustom").disabled = true;
+    $("seedCustom").placeholder = "Install a chat model to write your own openings";
+  }
+  return true;
+}
+
+function fillModelSelects() {
+  const names = installed.map((m) => m.name);
+  const narrators = names.filter((n) => chatCapable({ name: n }));
+  const judges = names.filter((n) => /nimble/.test(n));
+
+  $("cfgNarrator").innerHTML = '<option value="">— none: play the built-in story —</option>' +
+    narrators.map((n) => '<option value="' + esc(n) + '">' + esc(n) + "</option>").join("");
+  $("cfgJudge").innerHTML = (judges.length ? judges : ["nimble"])
+    .map((n) => '<option value="' + esc(n) + '">' + esc(n) + "</option>").join("");
+
+  $("cfgHost").value = cfg.host;
+  $("cfgNarrator").value = cfg.narrator;
+  $("cfgJudge").value = cfg.judge;
+  $("cfgScenes").value = cfg.scenes;
+  $("cfgNote").textContent = narrators.length
+    ? "Nimble only judges — it cannot write prose. Any chat model can narrate; small ones are faster and stranger."
+    : "No chat model installed. Run: ollama pull llama3.1:8b";
+}
+
+/* ===================================================================
+   Wiring
+   =================================================================== */
+
+let chosenSeed = SEEDS[0];
+
+$("seedList").innerHTML = SEEDS.map((s, i) =>
+  '<button class="seed" type="button" data-i="' + i + '" aria-pressed="' + (i === 0) + '">' +
+  "<b>" + esc(s.title) + "</b><span>" + esc(s.blurb) + "</span></button>"
+).join("");
+
+$("seedList").addEventListener("click", (e) => {
+  const b = e.target.closest(".seed");
+  if (!b) return;
+  chosenSeed = SEEDS[Number(b.dataset.i)];
+  document.querySelectorAll(".seed").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  $("seedCustom").value = "";
+});
+
+$("seedCustom").addEventListener("input", () => {
+  if ($("seedCustom").value.trim()) {
+    document.querySelectorAll(".seed").forEach((x) => x.setAttribute("aria-pressed", "false"));
+  }
+});
+
+$("beginBtn").addEventListener("click", () => {
+  const custom = $("seedCustom").value.trim();
+  const seed = custom
+    ? { title: "Your own", blurb: custom, prompt: custom }
+    : chosenSeed;
+  startRun(seed);
+});
+
+$("choiceList").addEventListener("click", (e) => {
+  const b = e.target.closest(".choice");
+  if (!b || b.disabled) return;
+  takeAction(game.choices[Number(b.dataset.i)]);
+});
+
+$("freeForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const v = $("freeInput").value.trim();
+  if (v.length < 3) return;
+  takeAction(v);
+});
+
+$("continueBtn").addEventListener("click", advance);
+$("againBtn").addEventListener("click", () => {
+  $("endPanel").hidden = true;
+  $("startPanel").hidden = false;
+  $("startPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+$("copyBtn").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText($("shareText").textContent);
+    $("copyBtn").textContent = "Copied";
+    setTimeout(() => { $("copyBtn").textContent = "Copy"; }, 1600);
+  } catch (e) {
+    $("copyBtn").textContent = "Copy failed";
+  }
+});
+
+$("retryBtn").addEventListener("click", probe);
+$("connSetupBtn").addEventListener("click", () => { fillModelSelects(); $("setupDialog").showModal(); });
+$("setupBtn").addEventListener("click", () => { fillModelSelects(); $("setupDialog").showModal(); });
+$("cfgClose").addEventListener("click", () => $("setupDialog").close());
+
+$("cfgRefresh").addEventListener("click", async () => {
+  cfg.host = $("cfgHost").value.trim() || DEFAULTS.host;
+  saveCfg(cfg);
+  await probe();
+  fillModelSelects();
+});
+
+$("cfgSave").addEventListener("click", async () => {
+  cfg.host = $("cfgHost").value.trim() || DEFAULTS.host;
+  cfg.narrator = $("cfgNarrator").value;
+  cfg.judge = $("cfgJudge").value || "nimble";
+  const n = parseInt($("cfgScenes").value, 10);
+  cfg.scenes = Number.isFinite(n) ? Math.max(3, Math.min(16, n)) : DEFAULTS.scenes;
+  saveCfg(cfg);
+  $("setupDialog").close();
+  await probe();
+});
+
+/* theme */
+const THEMES = ["nightshift", "daylight"];
+let theme = "nightshift";
+try { theme = localStorage.getItem("nerve-theme-v1") || "nightshift"; } catch (e) {}
+function applyTheme() {
+  document.documentElement.dataset.theme = theme;
+  $("themeBtn").textContent = theme === "nightshift" ? "Nightshift" : "Daylight";
+  try { localStorage.setItem("nerve-theme-v1", theme); } catch (e) {}
+}
+$("themeBtn").addEventListener("click", () => {
+  theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+  applyTheme();
+});
+applyTheme();
+
+/* keyboard: A/B/C pick a choice, Enter continues */
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.metaKey || e.ctrlKey) return;
+  if (!$("judgePanel").hidden && (e.key === "Enter" || e.key === " ")) {
+    if (!$("continueBtn").disabled) { e.preventDefault(); advance(); }
+    return;
+  }
+  const i = "abc".indexOf(e.key.toLowerCase());
+  if (i >= 0 && !$("scenePanel").hidden) {
+    const b = document.querySelector('.choice[data-i="' + i + '"]');
+    if (b && !b.disabled) b.click();
+  }
+});
+
+probe();
+</script>
+</body>
+</html>
