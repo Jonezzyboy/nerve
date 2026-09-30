@@ -1294,15 +1294,54 @@ function setStatus(state, text) {
   $("statusText").textContent = text;
 }
 
+function pageOrigin() {
+  return location.protocol === "file:" || location.origin === "null" ? null : location.origin;
+}
+
+function isLocalOrigin() {
+  return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|$)/.test(location.origin);
+}
+
+function whyText() {
+  const origin = pageOrigin();
+  if (!origin) {
+    return "This page was opened straight off disk, so it has no origin Ollama can allow. Serve it over http instead.";
+  }
+  if (isLocalOrigin()) {
+    return "Couldn't reach Ollama at " + cfg.host + ". Ollama already allows localhost, so it most likely isn't running.";
+  }
+  return "Couldn't reach Ollama at " + cfg.host + ". Ollama is probably running but refusing calls from " + origin +
+    " \u2014 it only answers browsers on origins it has been told about.";
+}
+
 function fixHint() {
-  const origin = location.origin === "null" || location.protocol === "file:" ? "null" : location.origin;
-  return "ollama serve                     # if it isn't running\n" +
-    "ollama pull nimble                # the judge\n" +
-    "ollama pull llama3.1:8b           # a narrator (any chat model works)\n\n" +
-    "# Ollama only accepts browser calls from origins it knows about.\n" +
-    "# This page is served from " + origin + ", so:\n" +
-    "launchctl setenv OLLAMA_ORIGINS \"" + origin + "\" && killall ollama\n\n" +
-    "# Serving the page from disk? Run it over http, not file://:\n" +
+  const origin = pageOrigin();
+
+  if (!origin) {
+    return "cd nerve\n" +
+      "python3 -m http.server 8383      # then open http://localhost:8383\n\n" +
+      "# localhost is on Ollama's default allowlist, so nothing else needs setting.";
+  }
+
+  if (isLocalOrigin()) {
+    return "ollama serve                     # if it isn't running\n" +
+      "ollama pull nimble               # the judge\n" +
+      "ollama pull llama3.2:3b          # a narrator (any chat model works)\n\n" +
+      "# localhost is allowed by default, so nothing else needs setting.\n" +
+      "curl " + cfg.host + "/api/tags   # should list your models";
+  }
+
+  return "# Ollama only answers browsers on origins it has been told about,\n" +
+    "# and this page is served from " + origin + ".\n\n" +
+    "# Running Ollama from the terminal \u2014 stop it, then:\n" +
+    "OLLAMA_ORIGINS=\"" + origin + "\" ollama serve\n\n" +
+    "# Running the Ollama menu-bar app? Set it, then Quit Ollama from the\n" +
+    "# menu bar and open it again. `killall ollama` will not do it: the app\n" +
+    "# restarts the server itself, with its own environment, and the\n" +
+    "# setting never reaches it.\n" +
+    "launchctl setenv OLLAMA_ORIGINS \"" + origin + "\"\n\n" +
+    "# Or skip all of it \u2014 localhost is allowed already:\n" +
+    "git clone https://github.com/Jonezzyboy/nerve && cd nerve\n" +
     "python3 -m http.server 8383      # then open http://localhost:8383";
 }
 
@@ -1320,9 +1359,7 @@ async function probe() {
   } catch (e) {
     $("connPanel").hidden = false;
     $("startPanel").hidden = true;
-    $("connWhy").textContent =
-      "Couldn't reach Ollama at " + cfg.host + ". Either it isn't running, or it is refusing this page's origin (" +
-      (location.origin === "null" ? "file://" : location.origin) + ").";
+    $("connWhy").textContent = whyText();
     $("connFix").textContent = fixHint();
     setStatus("bad", "No Ollama at " + cfg.host);
     return false;

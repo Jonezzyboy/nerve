@@ -20,12 +20,23 @@ python3 -m http.server 8383
 Then open <http://localhost:8383>. Ollama accepts browser calls from `localhost` on any
 port out of the box, so nothing else needs configuring.
 
-To play it from `https://jonezzyboy.github.io/nerve/` instead, tell Ollama that origin is
-allowed:
+To play it from `https://jonezzyboy.github.io/nerve/` instead, Ollama has to be told that
+origin is allowed. If you run it from a terminal, stop it and start it with:
 
 ```sh
-launchctl setenv OLLAMA_ORIGINS "https://jonezzyboy.github.io" && killall ollama
+OLLAMA_ORIGINS="https://jonezzyboy.github.io" ollama serve
 ```
+
+If you run the **menu-bar app**, set the variable and then quit the app from the menu bar
+and reopen it:
+
+```sh
+launchctl setenv OLLAMA_ORIGINS "https://jonezzyboy.github.io"
+```
+
+`killall ollama` is not enough on its own — the app immediately restarts the server with
+its own environment, so the setting never reaches it. The symptom is a 403 on the CORS
+preflight while `curl http://localhost:11434/api/tags` still works fine.
 
 The **Models** button in the page picks the endpoint, the narrator, the judge and the run
 length; everything is stored in `localStorage`. With no chat model installed, Nerve falls
